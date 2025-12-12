@@ -97,12 +97,16 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue):
     probability = 1 / (1 + np.exp(-logit))
     return probability
 
-def call_azure_api(biomarkers, prior_prob):
-    # Azure Model/Endpoint
-    url = "https://proto-mtiocloud-jdakw.eastus2.inference.ml.azure.com/score"
-    # Security: Get key from Azure Environment settings 
-    api_key = os.environ.get("Azure_API_KEY") 
+    def call_azure_api(biomarkers, prior_prob):
+    # SECURE: Get key from Azure Environment settings
+    api_key = os.environ.get("AZURE_API_KEY")
     
+    # --- THE FIX: SAFETY CHECK ---
+    if not api_key:
+        return "System Error: Azure API Key is missing from environment settings."
+
+    # Now it is safe to use api_key because we checked it's not None
+    url = "https://proto-mtiocloud-jdakw.eastus2.inference.ml.azure.com/score" 
     headers = {'Content-Type': 'application/json', 'Authorization': ('Bearer ' + api_key)}
     
     data = {
@@ -200,4 +204,5 @@ else:
             
             st.success(f"**FINAL DIAGNOSIS:** {result}")
             if "POSITIVE" in result:
+
                 st.error("ACTION REQUIRED: Refer to Neurology.")
