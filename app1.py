@@ -167,22 +167,18 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue):
     probability = 1 / (1 + np.exp(-logit))
     return probability
 
-def call_azure_api(biomarkers, prior_prob):
-    # 1. SECURE: Get Key AND Endpoint from Environment Settings
-    api_key = os.environ.get("AZURE_API_KEY")
-    azure_ml_url = os.environ.get("AZURE_ML_ENDPOINT")  
-
-    # 2. SAFETY CHECK: Ensure both exist before running
-    if not api_key:
-        return "System Error: Azure API Key is missing."
-    if not azure_ml_url:
-        return "System Error: Azure ML Endpoint is missing."
-
-    # 3. RUN: Use the variables
-    headers = {'Content-Type': 'application/json', 'Authorization': ('Bearer ' + api_key)}
+def call_azure_api(biomarkers, prior_prob, symptoms):
+    # Endpoint and Key (Ensure these are defined globally or passed in)
+    # azure_ml_url = "..." 
+    # api_key = "..." 
     
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": ("Bearer " + api_key)
+    }
+
     data = {
-        "input_data": {
+        "Inputs": {
             "data": [{
                 "NAD_NADH": biomarkers['nad'],
                 "PCr_ATP": biomarkers['pcr'],
@@ -197,15 +193,31 @@ def call_azure_api(biomarkers, prior_prob):
         response = requests.post(azure_ml_url, headers=headers, json=data)
         if response.status_code == 200:
             result_list = response.json()
-            result_code = result_list[0]
+            result_code = result_list[0] # The raw AI prediction (0, 1, 2, 3)
+
+            # --- CLINICAL GUARDRAIL: Override Pattern based on Dominant Symptom ---
+            # If the AI says "Sick" (Code 1, 2, or 3), we ensure the TYPE matches the patient's reality.
+            if result_code != 0:
+                # Rule: If Vestibular is High (>7) and dominant, it is TYPE 2.
+                if symptoms['vestibular'] >= 7 and symptoms['vestibular'] > symptoms['cognitive']:
+                    return "POSITIVE: Type 2 Pattern (Ataxia/Dizziness)"
+                
+                # Rule: If Pain is High (>7) and dominant, it is TYPE 3.
+                elif symptoms['pain'] >= 7 and symptoms['pain'] > symptoms['cognitive']:
+                    return "POSITIVE: Type 3 Pattern (Pain/Myalgia)"
+
+            # Fallback: If no override needed, trust the AI's classification
             if result_code == 0: return "Negative (Healthy)"
             elif result_code == 1: return "POSITIVE: Type 1 Pattern (Cognitive/Fatigue)"
             elif result_code == 2: return "POSITIVE: Type 2 Pattern (Ataxia/Dizziness)"
             elif result_code == 3: return "POSITIVE: Type 3 Pattern (Pain/Myalgia)"
             else: return f"POSITIVE: Unknown Pattern ({result_code})"
-        else: return f"Error {response.status_code}"
-    except Exception as e: return f"Connection Error: {str(e)}"
 
+        else:
+            return f"Error {response.status_code}"
+    except Exception as e:
+        return f"Connection Error: {str(e)}"
+        
 # --- SIDEBAR (THE CHART) ---
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Microsoft_icon.svg/1024px-Microsoft_icon.svg.png", width=50) # Placeholder Logo
@@ -302,7 +314,16 @@ else:
         
             # 2. CALL YOUR EXISTING NEURAL NETWORK
             with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(modified_score*100, 1)}%)..."):
-                result = call_azure_api(biomarkers, modified_score)
+                # A. Pack the specific symptoms for the Guardrail check
+                symptoms_map = {
+                    'vestibular': val_vestibular,
+                    'pain': val_pain,
+                    'cognitive': val_cognitive,
+                    'fatigue': val_fatigue
+                }
+        
+                # B. Call the API with the new 'symptoms_map' argument
+                result = call_azure_api(biomarkers, modified_score, symptoms_map)
             st.success(f"**FINAL DIAGNOSIS:** {result}")
             
             if "POSITIVE" in result:
@@ -335,6 +356,7 @@ else:
         
         
         
+
 
 
 
