@@ -89,11 +89,13 @@ st.markdown("""
 def reset_app():
     """Clears the risk score whenever inputs change."""
     st.session_state['risk_score'] = None
+    
 def get_safe_diagnosis_explanation(medical_data_json):
     """
     Connects to Azure OpenAI + Content Safety to explain the results.
+    UPDATED: Uses a strict Clinical Pathologist persona and explicit ranges for filtering.
     """
-    # Check for keys (prevents crashing if not set)
+    # Check for keys (prevents crashing if not set) [cite: 8, 30]
     if not os.getenv("AZURE_OPENAI_KEY") or not os.getenv("CONTENT_SAFETY_KEY"):
         return "⚠️ SYSTEM NOTE: AI Companion disabled (Keys missing)."
 
@@ -105,18 +107,23 @@ def get_safe_diagnosis_explanation(medical_data_json):
             api_version="2024-02-01"
         )
 
-        # --- UPDATED PROMPT FOR CLINICIANS ---
+        # --- UPDATED PROMPT FOR CLINICIANS (With Filtering/Ranges) ---
         prompt = f"""
-        ACT AS: A Clinical Metabolic Pathologist.
-        TASK: Interpret the following raw biomarker data for a physician.
+        ACT AS: A Clinical Metabolic Pathologist. Your output is for use by licensed clinicians only.
+        TASK: Interpret the raw biomarker data. You MUST compare the patient's value against the provided normal ranges.
         CONTEXT: The patient is a Gulf War Veteran with suspected GWI.
-        
+
+        HEALTHY REFERENCE RANGES:
+        - NAD/NADH Ratio: 5.0 to 10.0 (or higher is optimal)
+        - PCr/ATP Ratio: 3.0 to 5.0
+        - GSH/GSSG Ratio: 10.0 to 100.0
+
         INSTRUCTIONS:
-        1. Be concise, technical, and objective.
-        2. DO NOT use conversational fillers (e.g., "Absolutely," "Here is the report"). Start directly with the analysis.
-        3. Explain the clinical significance of the NAD/NADH, PCr/ATP, and GSH/GSSG ratios relative to the diagnosis.
-        4. Suggest specific next steps for clinical validation (e.g., "Consider confirmatory phosphorus magnetic resonance spectroscopy").
-        
+        1. **MUST BE CONCISE AND TECHNICAL.** DO NOT use any subjective language, conversational fillers, or reassurances (e.g., "I'm here to help," "not your fault"). Start immediately with "Metabolic Analysis:"
+        2. Analyze each biomarker. State the patient's value and explicitly conclude if it is within, above, or below the normal range.
+        3. Explain the clinical significance of the NAD/NADH, PCr/ATP, and GSH/GSSG ratios relative to the final diagnosis pattern (e.g., Type 1, Type 2).
+        4. Suggest specific next steps for clinical validation (e.g., "Consider confirmatory phosphorus magnetic resonance spectroscopy (31P-MRS)").
+
         RAW DATA: {medical_data_json}
         """
 
@@ -126,7 +133,7 @@ def get_safe_diagnosis_explanation(medical_data_json):
         )
         explanation_text = response.choices[0].message.content
 
-        # 2. SAFETY CHECK (Azure Content Safety)
+        # 2. SAFETY CHECK (Azure Content Safety) [cite: 33]
         client_safety = ContentSafetyClient(
             endpoint=os.getenv("CONTENT_SAFETY_ENDPOINT"),
             credential=AzureKeyCredential(os.getenv("CONTENT_SAFETY_KEY"))
@@ -136,9 +143,8 @@ def get_safe_diagnosis_explanation(medical_data_json):
         safety_result = client_safety.analyze_text(request)
         
         for analysis in safety_result.categories_analysis:
-            # We keep Self-Harm check just in case, though less likely in clinical text
             if analysis.category == TextCategory.SELF_HARM and analysis.severity > 0:
-                return "DETECTED_RISK: Please contact the Veteran Crisis Line: 988."
+                return "DETECTED_RISK: Please contact the Veteran Crisis Line: 988." [cite: 33]
 
         return explanation_text
 
@@ -311,4 +317,5 @@ else:
         
         
         
+
 
