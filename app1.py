@@ -228,8 +228,9 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
             return f"Error {response.status_code} - {response.text}"
     except Exception as e:
         return f"Connection Error: {str(e)}"
-# --- SIDEBAR (THE CHART) ---
+# --- SIDEBAR (THE UNIVERSAL CHART) ---
 with st.sidebar:
+    # 1. THE LOGO (Accessible)
     st.markdown(
         """
         <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Microsoft_icon.svg/1024px-Microsoft_icon.svg.png" 
@@ -238,37 +239,86 @@ with st.sidebar:
         """,
         unsafe_allow_html=True
     )
-    st.markdown("### 🏥 VA NeuroMetabolic Triage")
-    st.markdown(f"<div class='badge-secure'>🔒 HIPAA SECURE SESSION | ID: {datetime.date.today()}</div>", unsafe_allow_html=True)
+    
+    # 2. THE PROTOCOL SELECTOR (The "Magic Trick")
+    st.markdown("### ⚙️ Protocol Selector")
+    protocol_mode = st.selectbox(
+        "Select Diagnostic Kernel:",
+        ["Gulf War Illness (Haley)", "Long COVID / PASC (CDC)", "Early-Onset Alzheimer's"],
+        key="protocol_selector",
+        on_change=reset_app
+    )
+    
+    # --- DYNAMIC CONFIGURATION ENGINE ---
+    # This dictionary swaps the interface text based on the selection
+    config = {
+        "Gulf War Illness (Haley)": {
+            "title": "VA NeuroMetabolic Triage",
+            "s1": "Joint Pain / Myalgia",
+            "h1": "Rate severity (0-10) per Haley Protocol",
+            "s2": "Chronic Fatigue",
+            "h2": "Impact of fatigue on daily activities",
+            "s3": "Cognitive Impairment",
+            "h3": "Brain fog, memory loss, confusion",
+            "s4": "Vestibular Dysfunction",
+            "h4": "Dizziness, ataxia, balance issues"
+        },
+        "Long COVID / PASC (CDC)": {
+            "title": "Post-Viral Triage Platform",
+            "s1": "Post-Exertional Malaise",
+            "h1": "Worsening of symptoms after minor exertion (PEM)",
+            "s2": "Respiratory / Dyspnea",
+            "h2": "Shortness of breath or air hunger",
+            "s3": "Brain Fog / Neurocognitive",
+            "h3": "Difficulty concentrating or finding words",
+            "s4": "Dysautonomia / POTS",
+            "h4": "Heart rate spikes, dizziness on standing"
+        },
+        "Early-Onset Alzheimer's": {
+            "title": "Neuro-Degenerative Screen",
+            "s1": "Agitation / Aggression",
+            "h1": "Restlessness or behavioral outbursts",
+            "s2": "Apathy / Withdrawal",
+            "h2": "Lack of motivation or emotional flattening",
+            "s3": "Short-Term Memory Loss",
+            "h3": "Repetitive questions, forgetting recent events",
+            "s4": "Spatial Disorientation",
+            "h4": "Getting lost in familiar places"
+        }
+    }
+    
+    # Load the settings for the selected protocol
+    current_settings = config[protocol_mode]
+    
+    # 3. DYNAMIC HEADER & SECURITY BADGE
+    st.markdown(f"### 🏥 {current_settings['title']}")
+    st.markdown(f"<div class='badge-secure'>🔒 HIPAA SECURE | ID: {datetime.date.today()}</div>", unsafe_allow_html=True)
     st.markdown("---")
     
+    # 4. DYNAMIC SYMPTOM SLIDERS
+    # We map the specific disease symptoms to the backend logic variables
     st.subheader("Patient Symptom Profile")
-    st.info("Haley Criteria Revised (0-10)")
+    st.info(f"Protocol: {protocol_mode}")
     
     input_pain = st.slider(
-        "Joint Pain / Myalgia", 0, 10, 1, key="pain",
-        help="Rate severity from 0 (None) to 10 (Severe) per Haley Protocol",
-        on_change=reset_app
+        current_settings['s1'], 0, 10, 1, key="pain",
+        help=current_settings['h1'], on_change=reset_app
     )
     input_fatigue = st.slider(
-        "Chronic Fatigue", 0, 10, 1, key="fatigue",
-        help="Rate the impact of fatigue on daily activities",
-        on_change=reset_app
+        current_settings['s2'], 0, 10, 1, key="fatigue",
+        help=current_settings['h2'], on_change=reset_app
     )
     input_confusion = st.slider(
-        "Cognitive Impairment", 0, 10, 1, key="confusion",
-        help="Includes brain fog, memory loss, or confusion",
-        on_change=reset_app
+        current_settings['s3'], 0, 10, 1, key="confusion",
+        help=current_settings['h3'], on_change=reset_app
     )
     input_dizziness = st.slider(
-        "Vestibular Dysfunction", 0, 10, 1, key="dizziness",
-        help="Includes dizziness, ataxia, or balance issues",
-        on_change=reset_app
+        current_settings['s4'], 0, 10, 1, key="dizziness",
+        help=current_settings['h4'], on_change=reset_app
     )
     
     st.markdown("---")
     analyze_btn = st.button("RUN TRIAGE PROTOCOL", type="primary")
-
 # --- MAIN DASHBOARD ---
 st.title("Clinical Decision Support Dashboard")
 
@@ -389,5 +439,6 @@ else:
                     st.warning(explanation)
                 else:
                     st.info(explanation)    
+
 
 
