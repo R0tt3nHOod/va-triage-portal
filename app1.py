@@ -316,10 +316,10 @@ else:
             with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(modified_score*100, 1)}%)..."):
                 # A. Pack the specific symptoms for the Guardrail check
                 symptoms_map = {
-                    'vestibular': val_vestibular,
-                    'pain': val_pain,
-                    'cognitive': val_cognitive,
-                    'fatigue': val_fatigue
+                    'vestibular': input_dizziness,
+                    'pain': input_pain,
+                    'cognitive': input_confusion,
+                    'fatigue': input_fatigue
                 }
         
                 # B. Call the API with the new 'symptoms_map' argument
@@ -356,6 +356,7 @@ else:
         
         
         
+
 
 
 
