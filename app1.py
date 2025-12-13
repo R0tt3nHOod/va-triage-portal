@@ -155,7 +155,7 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue):
 def call_azure_api(biomarkers, prior_prob):
     # 1. SECURE: Get Key AND Endpoint from Environment Settings
     api_key = os.environ.get("AZURE_API_KEY")
-    azure_ml_url = os.environ.get("AZURE_ML_ENDPOINT")  # <--- NEW: No more hardcoding!
+    azure_ml_url = os.environ.get("AZURE_ML_ENDPOINT")  
 
     # 2. SAFETY CHECK: Ensure both exist before running
     if not api_key:
@@ -254,50 +254,53 @@ else:
         
         st.write("")
         if st.button("ORDER CONFIRMATORY ANALYSIS"):
-    # 1. PREPARE DATA FOR YOUR EXISTING NEURAL NETWORK
-    biomarkers = {
-        'nad': val_nad, 
-        'pcr': val_pcr, 
-        'gsh': val_gsh, 
-        'meta_index': val_meta_index
-    }
-    
-    # 2. CALL YOUR EXISTING NEURAL NETWORK (PRESERVED)
-    with st.spinner("Connecting to Azure Neural Network..."):
-        # Note: 'score' must be defined in your code above this block (from sliders)
-        # If 'score' throws an error, replace it with the specific variable name for symptom score
-        result = call_azure_api(biomarkers, score) 
-
-    # 3. DISPLAY DIAGNOSIS (PRESERVED)
-    st.success(f"**FINAL DIAGNOSIS:** {result}")
-    
-    if "POSITIVE" in result:
-        st.error("ACTION REQUIRED: Refer to Neurology.")
-
-    # 4. NEW: RUN THE "IMAGINE CUP" AI COMPANION
-    st.markdown("---")
-    st.subheader("🤖 AI Clinical Companion (Azure OpenAI)")
-    
-    with st.spinner("Generating plain-English explanation..."):
+            # INPUT VALIDATION: Stop processing if values are impossible
+            if val_nad < 0 or val_pcr < 0 or val_gsh < 0:
+                st.error("⚠️ Invalid Input: Biomarker ratios cannot be negative. Please check your values.")
+                st.stop()
+            # 1. PREPARE DATA FOR YOUR EXISTING NEURAL NETWORK
+            biomarkers = {
+                'nad': val_nad, 
+                'pcr': val_pcr, 
+                'gsh': val_gsh, 
+                'meta_index': val_meta_index
+            }
         
-        # Package the data for the explanation AI
-        data_package = {
-            "diagnosis_result": result,
-            "metabolic_index": val_meta_index,
-            "biomarkers": biomarkers,
-            # We explicitly add the raw values so the AI can explain "Low NAD" etc.
-            "context": "Patient is a Gulf War Veteran"
-        }
+            # 2. CALL YOUR EXISTING NEURAL NETWORK (PRESERVED)
+            with st.spinner("Connecting to Azure Neural Network..."):
+                # Note: 'score' must be defined in your code above this block (from sliders)
+                # If 'score' throws an error, replace it with the specific variable name for symptom score
+                result = call_azure_api(biomarkers, score) 
         
-        # Call the new function
-        explanation = get_safe_diagnosis_explanation(data_package)
+            st.success(f"**FINAL DIAGNOSIS:** {result}")
+            
+            if "POSITIVE" in result:
+                st.error("ACTION REQUIRED: Refer to Neurology.")
+    
+            st.markdown("---")
+            st.subheader("🤖 AI Clinical Companion (Azure OpenAI)")
+            
+            with st.spinner("Generating plain-English explanation..."):
+                
+                # Package the data for the explanation AI
+                data_package = {
+                    "diagnosis_result": result,
+                    "metabolic_index": val_meta_index,
+                    "biomarkers": biomarkers,
+                    # We explicitly add the raw values so the AI can explain "Low NAD" etc.
+                    "context": "Patient is a Gulf War Veteran"
+                }
+                
+                # Call the new function
+                explanation = get_safe_diagnosis_explanation(data_package)
+                
+                # Display the output safely
+                if "DETECTED_RISK" in explanation:
+                    st.error(explanation)
+                elif "System Note" in explanation:
+                    st.warning(explanation)
+                else:
+                    st.info(explanation)
         
-        # Display the output safely
-        if "DETECTED_RISK" in explanation:
-            st.error(explanation)
-        elif "System Note" in explanation:
-            st.warning(explanation)
-        else:
-            st.info(explanation)
-
-
+        
+        
