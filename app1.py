@@ -169,11 +169,9 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue):
 
 def call_azure_api(biomarkers, prior_prob, symptoms):
     # --- SECURE CREDENTIALS (via Environment Variables) ---
-    # We use os.getenv() to keep keys out of the code, matching your OpenAI pattern.
     azure_ml_url = os.getenv("AZURE_ML_ENDPOINT")
     api_key = os.getenv("AZURE_ML_KEY")
     
-    # Safety Check: If keys are missing (e.g., local dev without .env), stop gracefully.
     if not azure_ml_url or not api_key:
         return "System Error: Azure ML credentials missing. Check .env or App Service settings."
 
@@ -182,15 +180,25 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
         "Authorization": ("Bearer " + api_key)
     }
 
+    # --- CRITICAL FIX: Matching the Azure ML Test Tab Format ---
+    # The model expects "input_data" with "columns" and "data" (list of lists)
     data = {
-        "Inputs": {
-            "data": [{
-                "NAD_NADH": biomarkers['nad'],
-                "PCr_ATP": biomarkers['pcr'],
-                "GSH_GSSG": biomarkers['gsh'],
-                "Metabolic_Index": biomarkers['meta_index'],
-                "Symptom_Prior_Probability": prior_prob
-            }]
+        "input_data": {
+            "columns": [
+                "NAD_NADH",
+                "PCr_ATP",
+                "GSH_GSSG",
+                "Metabolic_Index",
+                "Symptom_Prior_Probability"
+            ],
+            "index": [0],  # Optional index, good practice for this format
+            "data": [[
+                biomarkers['nad'],
+                biomarkers['pcr'],
+                biomarkers['gsh'],
+                biomarkers['meta_index'],
+                prior_prob
+            ]]
         }
     }
 
@@ -198,19 +206,18 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
         response = requests.post(azure_ml_url, headers=headers, json=data)
         if response.status_code == 200:
             result_list = response.json()
-            result_code = result_list[0] # The raw AI prediction (0, 1, 2, 3)
+            # The response format might also vary slightly, but usually returns a list
+            # We assume it returns [prediction] similar to before.
+            result_code = result_list[0] 
 
             # --- CLINICAL GUARDRAIL: Override Pattern based on Dominant Symptom ---
             if result_code != 0:
-                # Rule: If Vestibular is High (>7) and dominant, it is TYPE 2.
                 if symptoms['vestibular'] >= 7 and symptoms['vestibular'] > symptoms['cognitive']:
                     return "POSITIVE: Type 2 Pattern (Ataxia/Dizziness)"
-                
-                # Rule: If Pain is High (>7) and dominant, it is TYPE 3.
                 elif symptoms['pain'] >= 7 and symptoms['pain'] > symptoms['cognitive']:
                     return "POSITIVE: Type 3 Pattern (Pain/Myalgia)"
 
-            # Fallback: If no override needed, trust the AI's classification
+            # Fallback
             if result_code == 0: return "Negative (Healthy)"
             elif result_code == 1: return "POSITIVE: Type 1 Pattern (Cognitive/Fatigue)"
             elif result_code == 2: return "POSITIVE: Type 2 Pattern (Ataxia/Dizziness)"
@@ -218,10 +225,9 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
             else: return f"POSITIVE: Unknown Pattern ({result_code})"
 
         else:
-            return f"Error {response.status_code}"
+            return f"Error {response.status_code} - {response.text}"
     except Exception as e:
-        return f"Connection Error: {str(e)}" 
-        
+        return f"Connection Error: {str(e)}"
 # --- SIDEBAR (THE CHART) ---
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Microsoft_icon.svg/1024px-Microsoft_icon.svg.png", width=50) # Placeholder Logo
@@ -360,6 +366,7 @@ else:
         
         
         
+
 
 
 
