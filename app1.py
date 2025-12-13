@@ -113,10 +113,10 @@ def get_safe_diagnosis_explanation(medical_data_json):
         Your output must be concise, technical, and based only on the provided data.
         CONTEXT: The patient is a Gulf War Veteran with suspected GWI.
 
-        HEALTHY REFERENCE RANGES:
-        - NAD/NADH Ratio: 5.0 to 10.0 (or higher is optimal)
-        - PCr/ATP Ratio: 3.0 to 5.0
-        - GSH/GSSG Ratio: 10.0 to 100.0
+        HEALTHY REFERENCE TARGETS (Higher values indicate superior health):
+        - NAD/NADH Ratio: Target > 5.0 (Values < 3.0 indicate mitochondrial failure)
+        - PCr/ATP Ratio: Target > 3.0 (Values > 5.0 indicate elite energy reserves)
+        - GSH/GSSG Ratio: Target > 10.0 (Higher values confirm superior antioxidant capacity)
 
         INSTRUCTIONS:
         1. Begin your output immediately with the header "Metabolic Analysis:"
@@ -305,7 +305,7 @@ else:
             # This protects against False Negatives (sick vets with borderline labs).
             is_metabolic_optimal = (
                 (val_nad >= 8.0) and              # Strict: Must have high redox potential
-                (val_pcr >= 3.5 and val_pcr <= 4.5) and # Strict: Must have stable energy reserves
+                (val_pcr >= 3.5 and val_pcr <= 6.0) and # Strict: Must have stable energy reserves
                 (val_gsh >= 50.0)                 # Strict: Must have high antioxidant capacity
             )
             
@@ -366,6 +366,7 @@ else:
         
         
         
+
 
 
 
