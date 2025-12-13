@@ -230,7 +230,11 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
         return f"Connection Error: {str(e)}"
 # --- SIDEBAR (THE CHART) ---
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Microsoft_icon.svg/1024px-Microsoft_icon.svg.png", width=50) # Placeholder Logo
+    st.image(
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Microsoft_icon.svg/1024px-Microsoft_icon.svg.png",
+        width=50,
+        alt="Microsoft Healthcare Logo"
+    ) # Placeholder Logo
     st.markdown("### 🏥 VA NeuroMetabolic Triage")
     st.markdown(f"<div class='badge-secure'>🔒 HIPAA SECURE SESSION | ID: {datetime.date.today()}</div>", unsafe_allow_html=True)
     st.markdown("---")
@@ -238,10 +242,26 @@ with st.sidebar:
     st.subheader("Patient Symptom Profile")
     st.info("Haley Criteria Revised (0-10)")
     
-    input_pain = st.slider("Joint Pain / Myalgia", 0, 10, 1, key="pain", on_change=reset_app)
-    input_fatigue = st.slider("Chronic Fatigue", 0, 10, 1, key="fatigue", on_change=reset_app)
-    input_confusion = st.slider("Cognitive Impairment", 0, 10, 1, key="confusion", on_change=reset_app)
-    input_dizziness = st.slider("Vestibular Dysfunction", 0, 10, 1, key="dizziness", on_change=reset_app)
+    input_pain = st.slider(
+        "Joint Pain / Myalgia", 0, 10, 1, key="pain",
+        help="Rate severity from 0 (None) to 10 (Severe) per Haley Protocol",
+        on_change=reset_app
+    )
+    input_fatigue = st.slider(
+        "Chronic Fatigue", 0, 10, 1, key="fatigue",
+        help="Rate the impact of fatigue on daily activities",
+        on_change=reset_app
+    )
+    input_confusion = st.slider(
+        "Cognitive Impairment", 0, 10, 1, key="confusion",
+        help="Includes brain fog, memory loss, or confusion",
+        on_change=reset_app
+    )
+    input_dizziness = st.slider(
+        "Vestibular Dysfunction", 0, 10, 1, key="dizziness",
+        help="Includes dizziness, ataxia, or balance issues",
+        on_change=reset_app
+    )
     
     st.markdown("---")
     analyze_btn = st.button("RUN TRIAGE PROTOCOL", type="primary")
@@ -366,3 +386,4 @@ else:
                     st.warning(explanation)
                 else:
                     st.info(explanation)    
+
