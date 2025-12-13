@@ -122,8 +122,9 @@ def get_safe_diagnosis_explanation(medical_data_json):
         1. Begin your output immediately with the header "Metabolic Analysis:"
         2. Analyze each biomarker. State the patient's value in **bold** and conclude if it is within, above, or below the normal range, referencing the ranges provided.
         3. Explain the clinical significance of the ratios in relation to the diagnosis pattern (e.g., Type 1, Type 2).
-        4. Suggest specific next steps for clinical validation (e.g., "Consider confirmatory 31P-MRS") in **bold**.
-        5. DO NOT use conversation fillers, subjective language, or reassurances.
+        4. If the Final Diagnosis is POSITIVE but the biomarkers are nominally WITHIN NORMAL LIMITS, you must explain that the diagnosis is likely driven by the high symptom burden, suggesting early-stage metabolic instability or centrally-mediated dysfunction not yet fully captured by resting peripheral biomarkers.
+        5. Suggest specific next steps for clinical validation (e.g., "Consider confirmatory 31P-MRS") in **bold**.
+        6. DO NOT use conversation fillers, subjective language, or reassurances.
 
         RAW DATA: {medical_data_json}
         """
@@ -334,6 +335,7 @@ else:
         
         
         
+
 
 
 
