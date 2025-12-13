@@ -230,11 +230,14 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
         return f"Connection Error: {str(e)}"
 # --- SIDEBAR (THE CHART) ---
 with st.sidebar:
-    st.image(
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Microsoft_icon.svg/1024px-Microsoft_icon.svg.png",
-        width=50,
-        alt="Microsoft Healthcare Logo"
-    ) # Placeholder Logo
+    st.markdown(
+        """
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Microsoft_icon.svg/1024px-Microsoft_icon.svg.png" 
+             alt="Microsoft Healthcare Logo" 
+             width="50">
+        """,
+        unsafe_allow_html=True
+    )
     st.markdown("### 🏥 VA NeuroMetabolic Triage")
     st.markdown(f"<div class='badge-secure'>🔒 HIPAA SECURE SESSION | ID: {datetime.date.today()}</div>", unsafe_allow_html=True)
     st.markdown("---")
@@ -386,4 +389,5 @@ else:
                     st.warning(explanation)
                 else:
                     st.info(explanation)    
+
 
