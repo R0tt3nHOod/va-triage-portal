@@ -3,11 +3,14 @@ import streamlit as st
 import numpy as np
 import requests
 import datetime
+from openai import AzureOpenAI
+from azure.ai.contentsafety import ContentSafetyClient
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.contentsafety.models import AnalyzeTextOptions, TextCategory
 
 # --- CONFIGURATION & SECURITY ---
 st.set_page_config(
     page_title="VA NeuroMetabolic Triage | Secure",
-    page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -82,6 +85,54 @@ st.markdown("""
 def reset_app():
     """Clears the risk score whenever inputs change."""
     st.session_state['risk_score'] = None
+
+def get_safe_diagnosis_explanation(medical_data_json):
+    """
+    Connects to Azure OpenAI + Content Safety to explain the results.
+    """
+    # Check for keys (prevents crashing if not set)
+    if not os.getenv("AZURE_OPENAI_KEY") or not os.getenv("CONTENT_SAFETY_KEY"):
+        return "⚠️ SYSTEM NOTE: AI Companion disabled (Keys missing)."
+
+    try:
+        # 1. TRANSLATE (Azure OpenAI)
+        client_gpt = AzureOpenAI(
+            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT"), 
+            api_key=os.getenv("AZURE_OPENAI_KEY"),  
+            api_version="2024-02-01"
+        )
+
+        prompt = f"""
+        You are a compassionate medical assistant for Gulf War Veterans.
+        Translate this raw metabolic data into a reassuring, simple explanation.
+        The user has just received a diagnosis. Explain what the markers mean in plain English.
+        
+        RAW DATA: {medical_data_json}
+        """
+
+        response = client_gpt.chat.completions.create(
+            model="gpt-4o", # Ensure this matches your deployment name
+            messages=[{"role": "user", "content": prompt}]
+        )
+        explanation_text = response.choices[0].message.content
+
+        # 2. SAFETY CHECK (Azure Content Safety)
+        client_safety = ContentSafetyClient(
+            endpoint=os.getenv("CONTENT_SAFETY_ENDPOINT"),
+            credential=AzureKeyCredential(os.getenv("CONTENT_SAFETY_KEY"))
+        )
+        
+        request = AnalyzeTextOptions(text=explanation_text)
+        safety_result = client_safety.analyze_text(request)
+        
+        for analysis in safety_result.categories_analysis:
+            if analysis.category == TextCategory.SELF_HARM and analysis.severity > 0:
+                return "DETECTED_RISK: Please contact the Veteran Crisis Line: 988."
+
+        return explanation_text
+
+    except Exception as e:
+        return f"System Note: AI Explanation unavailable ({str(e)})"
 
 # --- LOGIC & API ---
 # Stage 1 Weights (Calibrated)
@@ -197,14 +248,49 @@ else:
         
         st.write("")
         if st.button("ORDER CONFIRMATORY ANALYSIS"):
-            biomarkers = {'nad': val_nad, 'pcr': val_pcr, 'gsh': val_gsh, 'meta_index': val_meta_index}
-            
-            with st.spinner("Connecting to Azure Neural Network..."):
-                result = call_azure_api(biomarkers, score)
-            
-            st.success(f"**FINAL DIAGNOSIS:** {result}")
-            if "POSITIVE" in result:
+    # 1. PREPARE DATA FOR YOUR EXISTING NEURAL NETWORK
+    biomarkers = {
+        'nad': val_nad, 
+        'pcr': val_pcr, 
+        'gsh': val_gsh, 
+        'meta_index': val_meta_index
+    }
+    
+    # 2. CALL YOUR EXISTING NEURAL NETWORK (PRESERVED)
+    with st.spinner("Connecting to Azure Neural Network..."):
+        # Note: 'score' must be defined in your code above this block (from sliders)
+        # If 'score' throws an error, replace it with the specific variable name for symptom score
+        result = call_azure_api(biomarkers, score) 
 
-                st.error("ACTION REQUIRED: Refer to Neurology.")
+    # 3. DISPLAY DIAGNOSIS (PRESERVED)
+    st.success(f"**FINAL DIAGNOSIS:** {result}")
+    
+    if "POSITIVE" in result:
+        st.error("ACTION REQUIRED: Refer to Neurology.")
 
+    # 4. NEW: RUN THE "IMAGINE CUP" AI COMPANION
+    st.markdown("---")
+    st.subheader("🤖 AI Clinical Companion (Azure OpenAI)")
+    
+    with st.spinner("Generating plain-English explanation..."):
+        
+        # Package the data for the explanation AI
+        data_package = {
+            "diagnosis_result": result,
+            "metabolic_index": val_meta_index,
+            "biomarkers": biomarkers,
+            # We explicitly add the raw values so the AI can explain "Low NAD" etc.
+            "context": "Patient is a Gulf War Veteran"
+        }
+        
+        # Call the new function
+        explanation = get_safe_diagnosis_explanation(data_package)
+        
+        # Display the output safely
+        if "DETECTED_RISK" in explanation:
+            st.error(explanation)
+        elif "System Note" in explanation:
+            st.warning(explanation)
+        else:
+            st.info(explanation)
 
