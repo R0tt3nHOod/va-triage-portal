@@ -269,23 +269,39 @@ else:
         st.write("")
         if st.button("ORDER CONFIRMATORY ANALYSIS"):
             # INPUT VALIDATION: Stop processing if values are impossible
-            if val_nad < 0 or val_pcr < 0 or val_gsh < 0:
-                st.error("⚠️ Invalid Input: Biomarker ratios cannot be negative. Please check your values.")
-                st.stop()
-            # 1. PREPARE DATA FOR YOUR EXISTING NEURAL NETWORK
-            biomarkers = {
-                'nad': val_nad, 
-                'pcr': val_pcr, 
-                'gsh': val_gsh, 
-                'meta_index': val_meta_index
-            }
+        if val_nad < 0 or val_pcr < 0 or val_gsh < 0:
+            st.error("⚠️ Invalid Input: Biomarker ratios cannot be negative. Please check your values.")
+            st.stop()
         
-            # 2. CALL YOUR EXISTING NEURAL NETWORK (PRESERVED)
-            with st.spinner("Connecting to Azure Neural Network..."):
-                # Note: 'score' must be defined in your code above this block (from sliders)
-                # If 'score' throws an error, replace it with the specific variable name for symptom score
-                result = call_azure_api(biomarkers, score) 
+        # --- LOGIC UPDATE: THE 'HIGH-CONFIDENCE VETO' ---
+        current_score = score # The score from Stage 1 (Symptoms)
+        modified_score = current_score
         
+        # We define strict 'Optimal' ranges. 
+        # Only PERFECT metabolic health can veto a high symptom score.
+        # This protects against False Negatives (sick vets with borderline labs).
+        is_metabolic_optimal = (
+            (val_nad >= 8.0) and              # Strict: Must have high redox potential
+            (val_pcr >= 3.5 and val_pcr <= 4.5) and # Strict: Must have stable energy reserves
+            (val_gsh >= 50.0)                 # Strict: Must have high antioxidant capacity
+        )
+        
+        # If biomarkers are OPTIMAL, we assume the symptoms are non-metabolic (or exaggerated)
+        if is_metabolic_optimal:
+            modified_score = 0.05 # De-weight symptoms to 5%
+            st.info("✅ **Clinical Note:** Biomarkers indicate optimal mitochondrial function. Symptom score de-weighted to prioritize objective metabolic data.")
+        
+        # 1. PREPARE DATA 
+        biomarkers = {
+            'nad': val_nad, 
+            'pcr': val_pcr, 
+            'gsh': val_gsh, 
+            'meta_index': val_meta_index
+        }
+    
+        # 2. CALL YOUR EXISTING NEURAL NETWORK
+        with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(modified_score*100, 1)}%)..."):
+            result = call_azure_api(biomarkers, modified_score)
             st.success(f"**FINAL DIAGNOSIS:** {result}")
             
             if "POSITIVE" in result:
@@ -318,6 +334,7 @@ else:
         
         
         
+
 
 
 
