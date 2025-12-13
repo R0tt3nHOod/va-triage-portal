@@ -89,7 +89,6 @@ st.markdown("""
 def reset_app():
     """Clears the risk score whenever inputs change."""
     st.session_state['risk_score'] = None
-
 def get_safe_diagnosis_explanation(medical_data_json):
     """
     Connects to Azure OpenAI + Content Safety to explain the results.
@@ -106,16 +105,23 @@ def get_safe_diagnosis_explanation(medical_data_json):
             api_version="2024-02-01"
         )
 
+        # --- UPDATED PROMPT FOR CLINICIANS ---
         prompt = f"""
-        You are a compassionate medical assistant for Gulf War Veterans.
-        Translate this raw metabolic data into a reassuring, simple explanation.
-        The user has just received a diagnosis. Explain what the markers mean in plain English.
+        ACT AS: A Clinical Metabolic Pathologist.
+        TASK: Interpret the following raw biomarker data for a physician.
+        CONTEXT: The patient is a Gulf War Veteran with suspected GWI.
+        
+        INSTRUCTIONS:
+        1. Be concise, technical, and objective.
+        2. DO NOT use conversational fillers (e.g., "Absolutely," "Here is the report"). Start directly with the analysis.
+        3. Explain the clinical significance of the NAD/NADH, PCr/ATP, and GSH/GSSG ratios relative to the diagnosis.
+        4. Suggest specific next steps for clinical validation (e.g., "Consider confirmatory phosphorus magnetic resonance spectroscopy").
         
         RAW DATA: {medical_data_json}
         """
 
         response = client_gpt.chat.completions.create(
-            model="gpt-4o", # Ensure this matches your deployment name
+            model="gpt-4o", 
             messages=[{"role": "user", "content": prompt}]
         )
         explanation_text = response.choices[0].message.content
@@ -130,6 +136,7 @@ def get_safe_diagnosis_explanation(medical_data_json):
         safety_result = client_safety.analyze_text(request)
         
         for analysis in safety_result.categories_analysis:
+            # We keep Self-Harm check just in case, though less likely in clinical text
             if analysis.category == TextCategory.SELF_HARM and analysis.severity > 0:
                 return "DETECTED_RISK: Please contact the Veteran Crisis Line: 988."
 
@@ -304,3 +311,4 @@ else:
         
         
         
+
