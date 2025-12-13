@@ -3,10 +3,14 @@ import streamlit as st
 import numpy as np
 import requests
 import datetime
+from dotenv import load_dotenv
 from openai import AzureOpenAI
 from azure.ai.contentsafety import ContentSafetyClient
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.contentsafety.models import AnalyzeTextOptions, TextCategory
+
+#Load environment variables from .env file
+load_dotenv()
 
 # --- CONFIGURATION & SECURITY ---
 st.set_page_config(
@@ -149,15 +153,17 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue):
     return probability
 
 def call_azure_api(biomarkers, prior_prob):
-    # SECURE: Get key from Azure Environment settings
+    # 1. SECURE: Get Key AND Endpoint from Environment Settings
     api_key = os.environ.get("AZURE_API_KEY")
-        
-    # --- THE FIX: SAFETY CHECK ---
-    if not api_key:
-        return "System Error: Azure API Key is missing from environment settings."
+    azure_ml_url = os.environ.get("AZURE_ML_ENDPOINT")  # <--- NEW: No more hardcoding!
 
-    # Now it is safe to use api_key because we checked it's not None
-    url = "https://proto-mtiocloud-jdakw.eastus2.inference.ml.azure.com/score" 
+    # 2. SAFETY CHECK: Ensure both exist before running
+    if not api_key:
+        return "System Error: Azure API Key is missing."
+    if not azure_ml_url:
+        return "System Error: Azure ML Endpoint is missing."
+
+    # 3. RUN: Use the variables
     headers = {'Content-Type': 'application/json', 'Authorization': ('Bearer ' + api_key)}
     
     data = {
@@ -167,13 +173,13 @@ def call_azure_api(biomarkers, prior_prob):
                 "PCr_ATP": biomarkers['pcr'],
                 "GSH_GSSG": biomarkers['gsh'],
                 "Metabolic_Index": biomarkers['meta_index'],
-                "Symptom_Prior_Probability": prior_prob 
+                "Symptom_Prior_Probability": prior_prob
             }]
         }
     }
-    
+
     try:
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(azure_ml_url, headers=headers, json=data)
         if response.status_code == 200:
             result_list = response.json()
             result_code = result_list[0]
@@ -293,4 +299,5 @@ else:
             st.warning(explanation)
         else:
             st.info(explanation)
+
 
