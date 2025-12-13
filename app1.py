@@ -290,77 +290,79 @@ else:
         val_meta_index = (val_nad/2.0) + (val_pcr/1.8) + (val_gsh/30.0)
         
         st.write("")
-            if st.button("ORDER CONFIRMATORY ANALYSIS"):
-                # INPUT VALIDATION: Stop processing if values are impossible
-                if val_nad < 0 or val_pcr < 0 or val_gsh < 0:
-                    st.error("⚠️ Invalid Input: Biomarker ratios cannot be negative. Please check your values.")
-                    st.stop()
-                
-                # 1. PREPARE DATA (Move this UP so it exists for both Healthy and Sick paths)
-                biomarkers = {
-                    'nad': val_nad,
-                    'pcr': val_pcr,
-                    'gsh': val_gsh,
-                    'meta_index': val_meta_index
-                }
+        val_meta_index = (val_nad/2.0) + (val_pcr/1.8) + (val_gsh/30.0)
         
-                # --- LOGIC UPDATE: THE 'HARD OVERRIDE' (BIOLOGICAL PRIMACY) ---
-                # SAFETY CHECK: Does this decrease sensitivity? 
-                # NO. GWI is defined by mitochondrial failure (NAD < 3.0). 
-                # A patient with NAD > 8.0 is biologically incapable of having GWI.
+        st.write("")
+        if st.button("ORDER CONFIRMATORY ANALYSIS"):
+            # INPUT VALIDATION: Stop processing if values are impossible
+            if val_nad < 0 or val_pcr < 0 or val_gsh < 0:
+                st.error("⚠️ Invalid Input: Biomarker ratios cannot be negative. Please check your values.")
+                st.stop()
+            
+            # 1. PREPARE DATA (Defined HERE so it exists for both Healthy and Sick paths)
+            biomarkers = {
+                'nad': val_nad,
+                'pcr': val_pcr,
+                'gsh': val_gsh,
+                'meta_index': val_meta_index
+            }
+
+            # --- LOGIC UPDATE: THE 'HARD OVERRIDE' (BIOLOGICAL PRIMACY) ---
+            # SAFETY CHECK: Does this decrease sensitivity? 
+            # NO. GWI is defined by mitochondrial failure (NAD < 3.0). 
+            # A patient with NAD > 8.0 is biologically incapable of having GWI.
+            
+            is_metabolic_optimal = (
+                (val_nad >= 8.0) and              # Elite Redox (GWI is < 3.0)
+                (val_pcr >= 3.5 and val_pcr <= 6.0) and # Normal Energy
+                (val_gsh >= 50.0)                 # Elite Antioxidant
+            )
+
+            if is_metabolic_optimal:
+                # HARD OVERRIDE: Prioritize Biology over Subjective Symptoms
+                st.info("✅ **Clinical Note:** Biomarkers indicate optimal mitochondrial function. Symptom score overridden by objective metabolic data.")
+                result = "Negative (Healthy)"
+            else:
+                # STANDARD AI FLOW (High Sensitivity)
+                # If biology is even slightly imperfect, we trust the AI to catch the disease.
+                current_score = score
                 
-                is_metabolic_optimal = (
-                    (val_nad >= 8.0) and              # Elite Redox (GWI is < 3.0)
-                    (val_pcr >= 3.5 and val_pcr <= 6.0) and # Normal Energy
-                    (val_gsh >= 50.0)                 # Elite Antioxidant
-                )
-        
-                if is_metabolic_optimal:
-                    # HARD OVERRIDE: Prioritize Biology over Subjective Symptoms
-                    st.info("✅ **Clinical Note:** Biomarkers indicate optimal mitochondrial function. Symptom score overridden by objective metabolic data.")
-                    result = "Negative (Healthy)"
-                else:
-                    # STANDARD AI FLOW (High Sensitivity)
-                    # If biology is even slightly imperfect, we trust the AI to catch the disease.
-                    current_score = score
-                    
-                    # 2. CALL AZURE NEURAL NETWORK
-                    with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(current_score*100, 1)}%)..."):
-                        symptoms_map = {
-                            'vestibular': input_dizziness,
-                            'pain': input_pain, 
-                            'cognitive': input_confusion,
-                            'fatigue': input_fatigue
-                        }
-                        result = call_azure_api(biomarkers, current_score, symptoms_map)
-                
-                
-                st.success(f"**FINAL DIAGNOSIS:** {result}")
-                
-                if "POSITIVE" in result:
-                    st.error("ACTION REQUIRED: Refer to Neurology.")
-        
-                st.markdown("---")
-                st.subheader("🤖 AI Clinical Companion (Azure OpenAI)")
-                
-                with st.spinner("Generating plain-English explanation..."):
-                    
-                    # Package the data for the explanation AI
-                    data_package = {
-                        "diagnosis_result": result,
-                        "metabolic_index": val_meta_index,
-                        "biomarkers": biomarkers, # Now this variable is safe to use!
-                        # We explicitly add the raw values so the AI can explain "Low NAD" etc.
-                        "context": "Patient is a Gulf War Veteran"
+                # 2. CALL AZURE NEURAL NETWORK
+                with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(current_score*100, 1)}%)..."):
+                    symptoms_map = {
+                        'vestibular': input_dizziness,
+                        'pain': input_pain, 
+                        'cognitive': input_confusion,
+                        'fatigue': input_fatigue
                     }
-                    
-                    # Call the new function
-                    explanation = get_safe_diagnosis_explanation(data_package)
-                    
-                    # Display the output safely
-                    if "DETECTED_RISK" in explanation:
-                        st.error(explanation)
-                    elif "System Note" in explanation:
-                        st.warning(explanation)
-                    else:
-                        st.info(explanation)
+                    result = call_azure_api(biomarkers, current_score, symptoms_map)
+            
+            
+            st.success(f"**FINAL DIAGNOSIS:** {result}")
+            
+            if "POSITIVE" in result:
+                st.error("ACTION REQUIRED: Refer to Neurology.")
+
+            st.markdown("---")
+            st.subheader("🤖 AI Clinical Companion (Azure OpenAI)")
+            
+            with st.spinner("Generating plain-English explanation..."):
+                
+                # Package the data for the explanation AI
+                data_package = {
+                    "diagnosis_result": result,
+                    "metabolic_index": val_meta_index,
+                    "biomarkers": biomarkers, # Safe to use now
+                    "context": "Patient is a Gulf War Veteran"
+                }
+                
+                # Call the new function
+                explanation = get_safe_diagnosis_explanation(data_package)
+                
+                # Display the output safely
+                if "DETECTED_RISK" in explanation:
+                    st.error(explanation)
+                elif "System Note" in explanation:
+                    st.warning(explanation)
+                else:
+                    st.info(explanation)    
