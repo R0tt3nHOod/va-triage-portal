@@ -1,3 +1,7 @@
 streamlit
 numpy
 requests
+python-dotenv
+openai
+azure-ai-contentsafety
+azure-core
