@@ -167,7 +167,7 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue):
     probability = 1 / (1 + np.exp(-logit))
     return probability
 
- def call_azure_api(biomarkers, prior_prob, symptoms):
+def call_azure_api(biomarkers, prior_prob, symptoms):
     # --- SECURE CREDENTIALS (via Environment Variables) ---
     # We use os.getenv() to keep keys out of the code, matching your OpenAI pattern.
     azure_ml_url = os.getenv("AZURE_ML_ENDPOINT")
@@ -220,7 +220,7 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue):
         else:
             return f"Error {response.status_code}"
     except Exception as e:
-        return f"Connection Error: {str(e)}"
+        return f"Connection Error: {str(e)}" 
         
 # --- SIDEBAR (THE CHART) ---
 with st.sidebar:
@@ -360,6 +360,7 @@ else:
         
         
         
+
 
 
 
