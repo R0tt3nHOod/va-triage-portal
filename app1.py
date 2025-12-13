@@ -167,11 +167,16 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue):
     probability = 1 / (1 + np.exp(-logit))
     return probability
 
-def call_azure_api(biomarkers, prior_prob, symptoms):
-    # Endpoint and Key (Ensure these are defined globally or passed in)
-    # azure_ml_url = "..." 
-    # api_key = "..." 
+ def call_azure_api(biomarkers, prior_prob, symptoms):
+    # --- SECURE CREDENTIALS (via Environment Variables) ---
+    # We use os.getenv() to keep keys out of the code, matching your OpenAI pattern.
+    azure_ml_url = os.getenv("AZURE_ML_ENDPOINT")
+    api_key = os.getenv("AZURE_ML_KEY")
     
+    # Safety Check: If keys are missing (e.g., local dev without .env), stop gracefully.
+    if not azure_ml_url or not api_key:
+        return "System Error: Azure ML credentials missing. Check .env or App Service settings."
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": ("Bearer " + api_key)
@@ -196,7 +201,6 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
             result_code = result_list[0] # The raw AI prediction (0, 1, 2, 3)
 
             # --- CLINICAL GUARDRAIL: Override Pattern based on Dominant Symptom ---
-            # If the AI says "Sick" (Code 1, 2, or 3), we ensure the TYPE matches the patient's reality.
             if result_code != 0:
                 # Rule: If Vestibular is High (>7) and dominant, it is TYPE 2.
                 if symptoms['vestibular'] >= 7 and symptoms['vestibular'] > symptoms['cognitive']:
@@ -356,6 +360,7 @@ else:
         
         
         
+
 
 
 
