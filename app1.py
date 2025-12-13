@@ -109,8 +109,8 @@ def get_safe_diagnosis_explanation(medical_data_json):
 
         # --- UPDATED PROMPT FOR CLINICIANS (With Filtering/Ranges) ---
         prompt = f"""
-        ACT AS: A Clinical Metabolic Pathologist. Your output is for use by licensed clinicians only.
-        TASK: Interpret the raw biomarker data. You MUST compare the patient's value against the provided normal ranges.
+        You are a Clinical Metabolic Pathologist providing an objective analysis for a physician.
+        Your output must be concise, technical, and based only on the provided data.
         CONTEXT: The patient is a Gulf War Veteran with suspected GWI.
 
         HEALTHY REFERENCE RANGES:
@@ -119,10 +119,11 @@ def get_safe_diagnosis_explanation(medical_data_json):
         - GSH/GSSG Ratio: 10.0 to 100.0
 
         INSTRUCTIONS:
-        1. **MUST BE CONCISE AND TECHNICAL.** DO NOT use any subjective language, conversational fillers, or reassurances (e.g., "I'm here to help," "not your fault"). Start immediately with "Metabolic Analysis:"
-        2. Analyze each biomarker. State the patient's value and explicitly conclude if it is within, above, or below the normal range.
-        3. Explain the clinical significance of the NAD/NADH, PCr/ATP, and GSH/GSSG ratios relative to the final diagnosis pattern (e.g., Type 1, Type 2).
-        4. Suggest specific next steps for clinical validation (e.g., "Consider confirmatory phosphorus magnetic resonance spectroscopy (31P-MRS)").
+        1. Begin your output immediately with the header "Metabolic Analysis:"
+        2. Analyze each biomarker. State the patient's value and conclude if it is within, above, or below the normal range, referencing the ranges provided.
+        3. Explain the clinical significance of the ratios in relation to the diagnosis pattern (e.g., Type 1, Type 2).
+        4. Suggest specific next steps for clinical validation (e.g., "Consider confirmatory 31P-MRS").
+        5. DO NOT use conversation fillers, subjective language, or reassurances.
 
         RAW DATA: {medical_data_json}
         """
@@ -317,5 +318,6 @@ else:
         
         
         
+
 
 
