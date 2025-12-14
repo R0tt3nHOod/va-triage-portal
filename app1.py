@@ -212,13 +212,13 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue, protocol):
     return probability
 
 def call_azure_api(biomarkers, prior_prob, symptoms):
-    """
-    Sends data to the Azure Machine Learning Inference Endpoint.
-    Includes a Fail-Safe: If the endpoint is down (demo effect), 
-    it falls back to local logic to prevent a crash.
-    """
+    # Retrieves Azure ML Model Credentials from Azure instead of Hard Coding
     endpoint = os.getenv("AZURE_ML_ENDPOINT")
     api_key = os.getenv("AZURE_ML_KEY")
+
+    if not endpoint or not api_key:
+        st.error("🚨 CRITICAL: Azure ML Environment Variables are missing!")
+        return "Error: Missing Keys"
     
     # Prepare the JSON payload required by Azure ML
     payload = {
@@ -245,12 +245,9 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
         'Authorization': (f'Bearer {api_key}')
     }
 
+    # ACTUAL API CALL
+    # timeout set to 30s to prevent hanging during a live demo
     try:
-        if not endpoint or not api_key:
-            raise ValueError("Endpoint configuration missing")
-
-        # ACTUAL API CALL
-        # timeout set to 30s to prevent hanging during a live demo
         response = requests.post(endpoint, json=payload, headers=headers, timeout=30.0) 
         
         if response.status_code == 200:
@@ -261,24 +258,16 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
                 return result[0] 
             return result
         else:
-            # Log error but don't crash the app
-            print(f"API Error {response.status_code}: {response.text}")
-            raise ConnectionError("API refused connection")
+            # Log error and show it in UI instead of crashing
+            error_msg = f"API Error {response.status_code}: {response.text}"
+            print(error_msg)
+            st.error(f"⚠️ {error_msg}")
+            return error_msg
 
     except Exception as e:
-        # --- DEMO FAIL-SAFE ---
-        # If the internet dies or the endpoint is cold, use this local logic
-        # so the judge never sees a crash.
-        print(f"Falling back to local inference: {e}")
-        
-        # Local Logic Mimicking the Neural Net
-        # If metabolic index is poor (<4.0) OR Symptoms are severe, flag it.
-        if biomarkers['meta_index'] < 4.0:
-            return "Positive (Type 2 - Neurological)"
-        elif prior_prob > 0.8:
-            return "Positive (Type 1 - Cognitive)"
-        else:
-            return "Negative (Healthy)"
+        # Catch connection errors (timeouts, DNS issues) safely
+        st.error(f"🚨 Connection Failure: {str(e)}")
+        return f"Error: {str(e)}"
 
 # --- SIDEBAR (THE UNIVERSAL CHART) ---
 with st.sidebar:
@@ -480,4 +469,5 @@ else:
                 st.warning(explanation)
             else:
                 st.info(explanation)
+
 
