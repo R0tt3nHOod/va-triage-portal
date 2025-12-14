@@ -220,21 +220,21 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
         st.error("🚨 CRITICAL: Azure ML Environment Variables are missing!")
         return "Error: Missing Keys"
     
-    # Prepare the JSON payload required by Azure ML
+    # PAYLOAD (Correctly formatted for Azure Managed Endpoints)
+    # We use "input_data" instead of "Inputs"
     payload = {
-        "input_data":[
+        "input_data": [
             {
-                    "nad_nadh": biomarkers['nad'],
-                    "pcr_atp": biomarkers['pcr'],
-                    "gsh_gssg": biomarkers['gsh'],
-                    "symptom_pain": symptoms['pain'],
-                    "symptom_cognitive": symptoms['cognitive'],
-                    "symptom_fatigue": symptoms['fatigue'],
-                    "symptom_vestibular": symptoms['vestibular'],
-                    "prior_probability": prior_prob
-                }
-            ]
-        },
+                "nad_nadh": biomarkers['nad'],
+                "pcr_atp": biomarkers['pcr'],
+                "gsh_gssg": biomarkers['gsh'],
+                "symptom_pain": symptoms['pain'],
+                "symptom_cognitive": symptoms['cognitive'],
+                "symptom_fatigue": symptoms['fatigue'],
+                "symptom_vestibular": symptoms['vestibular'],
+                "prior_probability": prior_prob
+            }
+        ],
         "GlobalParameters": 1.0
     }
 
@@ -245,29 +245,27 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
     }
 
     # ACTUAL API CALL
-    # timeout set to 30s to prevent hanging during a live demo
     try:
+        # Timeout set to 30s to prevent hanging
         response = requests.post(endpoint, json=payload, headers=headers, timeout=30.0) 
         
         if response.status_code == 200:
-            # Parse the Azure ML JSON response
             result = response.json()
-            # Handle standard Azure ML return format (usually a list of results)
+            # Handle standard Azure ML return format (usually a list)
             if isinstance(result, list):
                 return result[0] 
             return result
         else:
-            # Log error and show it in UI instead of crashing
+            # Show the specific error from Azure if it fails
             error_msg = f"API Error {response.status_code}: {response.text}"
-            print(error_msg)
             st.error(f"⚠️ {error_msg}")
+            print(error_msg)
             return error_msg
 
     except Exception as e:
-        # Catch connection errors (timeouts, DNS issues) safely
         st.error(f"🚨 Connection Failure: {str(e)}")
         return f"Error: {str(e)}"
-
+        
 # --- SIDEBAR (THE UNIVERSAL CHART) ---
 with st.sidebar:
     # 1. THE LOGO (Accessible)
@@ -468,6 +466,7 @@ else:
                 st.warning(explanation)
             else:
                 st.info(explanation)
+
 
 
 
