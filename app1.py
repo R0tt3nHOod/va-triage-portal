@@ -234,8 +234,7 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
                 "symptom_vestibular": symptoms['vestibular'],
                 "prior_probability": prior_prob
             }
-        ],
-        "GlobalParameters": 1.0
+        ]
     }
 
     # Headers for Bearer Auth
@@ -391,81 +390,88 @@ else:
         st.markdown(f"<div class='badge-risk-high'>⚠️ HIGH PROBABILITY ({score_pct}%)<br>METABOLIC DYSFUNCTION DETECTED</div>", unsafe_allow_html=True)
         
     st.write("")
-    st.subheader("🔓 Confirmatory Lab Interface")
-    
-    # The "Card" Look
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    with c1:
-        val_nad = st.number_input("NAD / NADH Ratio", value=0.0)
-    with c2:
-        val_pcr = st.number_input("PCr / ATP Ratio", value=0.0)
+
+    # CONFIRMATORY LAB INTERFACE (LOCKED IF SCORE < 50%)
+    if score > 0.5:
+        st.subheader("🔓 Confirmatory Lab Interface")
         
-    val_gsh = st.number_input("GSH / GSSG Ratio", value=0.0)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    val_meta_index = (val_nad/2.0) + (val_pcr/1.8) + (val_gsh/30.0)
-    st.write("")
-    
-    if st.button("ORDER CONFIRMATORY ANALYSIS"):
-        if val_nad < 0 or val_pcr < 0 or val_gsh < 0:
-            st.error("⚠️ Invalid Input: Biomarker ratios cannot be negative.")
-            st.stop()
+        # The "Card" Look
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            val_nad = st.number_input("NAD / NADH Ratio", value=0.0)
+        with c2:
+            val_pcr = st.number_input("PCr / ATP Ratio", value=0.0)
             
-        biomarkers = {
-            'nad': val_nad,
-            'pcr': val_pcr,
-            'gsh': val_gsh,
-            'meta_index': val_meta_index
-        }
+        val_gsh = st.number_input("GSH / GSSG Ratio", value=0.0)
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # --- LOGIC UPDATE: THE 'HARD OVERRIDE' ---
-        is_metabolic_optimal = (
-            (val_nad >= 8.0) and             
-            (val_pcr >= 3.5 and val_pcr <= 6.0) and 
-            (val_gsh >= 50.0)                
-        )
+        val_meta_index = (val_nad/2.0) + (val_pcr/1.8) + (val_gsh/30.0)
+        st.write("")
         
-        if is_metabolic_optimal:
-            st.info("✅ **Clinical Note:** Biomarkers indicate optimal mitochondrial function. Symptom score overridden by objective metabolic data.")
-            result = "Negative (Healthy)"
-        else:
-            current_score = score
-            
-            # 2. CALL AZURE NEURAL NETWORK
-            with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(current_score*100, 1)}%)..."):
-                # Map dynamic inputs to standard keys
-                symptoms_map = {
-                    'vestibular': input_dizziness,
-                    'pain': input_pain,
-                    'cognitive': input_confusion,
-                    'fatigue': input_fatigue
-                }
-                result = call_azure_api(biomarkers, current_score, symptoms_map)
-            
-            st.success(f"**FINAL DIAGNOSIS:** {result}")
-            if "POSITIVE" in result:
-                st.error("ACTION REQUIRED: Refer to Neurology.")
-        
-        st.markdown("---")
-        st.subheader("🤖 AI Clinical Companion (Azure OpenAI)")
-        
-        with st.spinner("Generating plain-English explanation..."):
-            data_package = {
-                "diagnosis_result": result,
-                "metabolic_index": val_meta_index,
-                "biomarkers": biomarkers,
-                "context": f"Patient is being screened for {protocol_mode}" 
+        if st.button("ORDER CONFIRMATORY ANALYSIS"):
+            if val_nad < 0 or val_pcr < 0 or val_gsh < 0:
+                st.error("⚠️ Invalid Input: Biomarker ratios cannot be negative.")
+                st.stop()
+                
+            biomarkers = {
+                'nad': val_nad,
+                'pcr': val_pcr,
+                'gsh': val_gsh,
+                'meta_index': val_meta_index
             }
             
-            explanation = get_safe_diagnosis_explanation(data_package)
+            # --- LOGIC UPDATE: THE 'HARD OVERRIDE' ---
+            is_metabolic_optimal = (
+                (val_nad >= 8.0) and             
+                (val_pcr >= 3.5 and val_pcr <= 6.0) and 
+                (val_gsh >= 50.0)                
+            )
             
-            if "DETECTED_RISK" in explanation:
-                st.error(explanation)
-            elif "System Note" in explanation:
-                st.warning(explanation)
+            if is_metabolic_optimal:
+                st.info("✅ **Clinical Note:** Biomarkers indicate optimal mitochondrial function. Symptom score overridden by objective metabolic data.")
+                result = "Negative (Healthy)"
             else:
-                st.info(explanation)
+                current_score = score
+                
+                # 2. CALL AZURE NEURAL NETWORK
+                with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(current_score*100, 1)}%)..."):
+                    # Map dynamic inputs to standard keys
+                    symptoms_map = {
+                        'vestibular': input_dizziness,
+                        'pain': input_pain,
+                        'cognitive': input_confusion,
+                        'fatigue': input_fatigue
+                    }
+                    result = call_azure_api(biomarkers, current_score, symptoms_map)
+                
+                st.success(f"**FINAL DIAGNOSIS:** {result}")
+                if "POSITIVE" in result:
+                    st.error("ACTION REQUIRED: Refer to Neurology.")
+            
+            st.markdown("---")
+            st.subheader("🤖 AI Clinical Companion (Azure OpenAI)")
+            
+            with st.spinner("Generating plain-English explanation..."):
+                data_package = {
+                    "diagnosis_result": result,
+                    "metabolic_index": val_meta_index,
+                    "biomarkers": biomarkers,
+                    "context": f"Patient is being screened for {protocol_mode}" 
+                }
+                
+                explanation = get_safe_diagnosis_explanation(data_package)
+                
+                if "DETECTED_RISK" in explanation:
+                    st.error(explanation)
+                elif "System Note" in explanation:
+                    st.warning(explanation)
+                else:
+                    st.info(explanation)
+        else:
+            # LOCKED STATE
+            st.info("🔒 **Confirmatory Lab Interface is locked.** Patient risk profile does not meet the threshold (50%) for advanced metabolic screening.")
+
 
 
 
