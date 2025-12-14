@@ -211,8 +211,11 @@ def calculate_stage1_risk(pain, confusion, dizziness, fatigue, protocol):
         
     return probability
 
-def call_azure_api(biomarkers, prior_prob, symptoms):
-    # Retrieves Azure ML Model Credentials from Azure instead of Hard Coding
+def call_azure_api(biomarkers, prior_prob):
+    """
+    Calls Azure ML Endpoint with the exact schema required by the model.
+    Schema: NAD_NADH, PCr_ATP, GSH_GSSG, Metabolic_Index, Symptom_Prior_Probability
+    """
     endpoint = os.getenv("AZURE_ML_ENDPOINT")
     api_key = os.getenv("AZURE_ML_KEY")
 
@@ -220,49 +223,45 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
         st.error("🚨 CRITICAL: Azure ML Environment Variables are missing!")
         return "Error: Missing Keys"
     
-    # PAYLOAD (Correctly formatted for Azure Managed Endpoints)
-    # We use "input_data" instead of "Inputs"
+    # Payload to send to ML model
     payload = {
-        "input_data": [
-            {
-                "nad_nadh": biomarkers['nad'],
-                "pcr_atp": biomarkers['pcr'],
-                "gsh_gssg": biomarkers['gsh'],
-                "symptom_pain": symptoms['pain'],
-                "symptom_cognitive": symptoms['cognitive'],
-                "symptom_fatigue": symptoms['fatigue'],
-                "symptom_vestibular": symptoms['vestibular'],
-                "prior_probability": prior_prob
-            }
-        ]
+        "input_data": {
+            "columns": [
+                "NAD_NADH",
+                "PCr_ATP",
+                "GSH_GSSG",
+                "Metabolic_Index",
+                "Symptom_Prior_Probability"
+            ],
+            "data": [
+                [
+                    biomarkers['nad'],          # Matches NAD_NADH
+                    biomarkers['pcr'],          # Matches PCr_ATP
+                    biomarkers['gsh'],          # Matches GSH_GSSG
+                    biomarkers['meta_index'],   # Matches Metabolic_Index
+                    prior_prob                  # Matches Symptom_Prior_Probability
+                ]
+            ]
+        }
     }
 
-    # Headers for Bearer Auth
     headers = {
         'Content-Type': 'application/json',
         'Authorization': (f'Bearer {api_key}')
     }
 
-    # ACTUAL API CALL
     try:
-        # Timeout set to 30s to prevent hanging
         response = requests.post(endpoint, json=payload, headers=headers, timeout=30.0) 
         
         if response.status_code == 200:
             result = response.json()
-            # Handle standard Azure ML return format (usually a list)
             if isinstance(result, list):
                 return result[0] 
             return result
         else:
-            # Show the specific error from Azure if it fails
-            error_msg = f"API Error {response.status_code}: {response.text}"
-            st.error(f"⚠️ {error_msg}")
-            print(error_msg)
-            return error_msg
+            return f"API Error {response.status_code}: {response.text}"
 
     except Exception as e:
-        st.error(f"🚨 Connection Failure: {str(e)}")
         return f"Error: {str(e)}"
         
 # --- SIDEBAR (THE UNIVERSAL CHART) ---
@@ -437,13 +436,7 @@ else:
                 # 2. CALL AZURE NEURAL NETWORK
                 with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(current_score*100, 1)}%)..."):
                     # Map dynamic inputs to standard keys
-                    symptoms_map = {
-                        'vestibular': input_dizziness,
-                        'pain': input_pain,
-                        'cognitive': input_confusion,
-                        'fatigue': input_fatigue
-                    }
-                    result = call_azure_api(biomarkers, current_score, symptoms_map)
+                    result = call_azure_api(biomarkers, current_score,)
                 
                 st.success(f"**FINAL DIAGNOSIS:** {result}")
                 if "POSITIVE" in result:
@@ -468,7 +461,7 @@ else:
                     st.warning(explanation)
                 else:
                     st.info(explanation)
-        else:
+    else:
             # LOCKED STATE
             st.info("🔒 **Confirmatory Lab Interface is locked.** Patient risk profile does not meet the threshold (50%) for advanced metabolic screening.")
 
