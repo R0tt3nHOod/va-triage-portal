@@ -79,11 +79,64 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# MAP DIFFERENT DIAGNOSES TO DIFFERENT DISEASES 
+DIAGNOSIS_MAPPINGS = {
+    "GWI": {
+        0: "NEGATIVE (Healthy)",
+        1: "POSITIVE: GWI Type 1 (Fatigue/Pain Dominant)",
+        2: "POSITIVE: GWI Type 2 (Confusion/Ataxia Dominant)",
+        3: "POSITIVE: GWI Type 3 (Arthro-Myo-Neuropathy)",
+    },
+    "LONG_COVID": {
+        0: "NEGATIVE (Healthy)",
+        1: "POSITIVE: PASC (Fatigue/PEM Dominant)",
+        2: "POSITIVE: PASC (Neurocognitive/Brain Fog)",
+        3: "POSITIVE: PASC (Cardio/Dysautonomia)",
+    },
+    "ALZHEIMERS": {
+        0: "NEGATIVE (Healthy)",
+        1: "POSITIVE: Early-Onset Amnestic",
+        2: "POSITIVE: Early-Onset Non-Amnestic",
+        # Assuming only 2 subtypes for demonstration
+    }
+}
+
 # --- HELPER FUNCTIONS ---
 
 def reset_app():
     """Clears the risk score whenever inputs change."""
     st.session_state['risk_score'] = None
+
+def get_final_diagnosis_label(raw_result, protocol_mode):
+    # Standardize the protocol mode for dictionary key lookup
+    # e.g., 'Gulf War Illness' -> 'GWI'
+    # You must standardize the keys from your dropdown selector to match the dictionary keys above.
+    key = protocol_mode.split(' ')[0].upper() # Simplistic example for 'GULF'
+    
+    # Use a direct map for the protocols we named above
+    if 'GULF' in protocol_mode.upper():
+        key = 'GWI'
+    elif 'COVID' in protocol_mode.upper():
+        key = 'LONG_COVID'
+    elif 'ALZ' in protocol_mode.upper():
+        key = 'ALZHEIMERS'
+    else:
+        # Fallback for unsupported protocols or errors
+        return f"Unknown Protocol: {protocol_mode} (Raw: {raw_result})"
+
+    # Check if the protocol key exists in the mapping
+    if key in DIAGNOSIS_MAPPINGS:
+        mapping = DIAGNOSIS_MAPPINGS[key]
+        
+        # Safely convert the raw result (1, '1', 1.0) to an integer key
+        try:
+            int_result = int(raw_result)
+            return mapping.get(int_result, f"Unknown Subtype {int_result} in {key}")
+        except ValueError:
+            # Handle cases where result is a non-integer string (like an error message)
+            return raw_result
+    
+    return raw_result
 
 def get_safe_diagnosis_explanation(medical_data_json):
     """
@@ -419,8 +472,7 @@ else:
                 'gsh': val_gsh,
                 'meta_index': val_meta_index
             }
-            
-            # --- LOGIC UPDATE: THE 'HARD OVERRIDE' ---
+        # --- LOGIC UPDATE: THE 'HARD OVERRIDE' ---
             is_metabolic_optimal = (
                 (val_nad >= 8.0) and             
                 (val_pcr >= 3.5 and val_pcr <= 6.0) and 
@@ -429,30 +481,43 @@ else:
             
             if is_metabolic_optimal:
                 st.info("✅ **Clinical Note:** Biomarkers indicate optimal mitochondrial function. Symptom score overridden by objective metabolic data.")
-                result = "Negative (Healthy)"
+                # Set final_diagnosis directly for the AI Companion to use
+                final_diagnosis = "NEGATIVE (Healthy)" 
             else:
                 current_score = score
                 
                 # 2. CALL AZURE NEURAL NETWORK
                 with st.spinner(f"Connecting to Azure Neural Network (Prior Score: {round(current_score*100, 1)}%)..."):
-                    # Map dynamic inputs to standard keys
-                    result = call_azure_api(biomarkers, current_score,)
+                    raw_model_result = call_azure_api(biomarkers, current_score) 
                 
-                st.success(f"**FINAL DIAGNOSIS:** {result}")
-                if "POSITIVE" in str(result).upper():
-                    st.error("ACTION REQUIRED: Refer to Neurology.")
+                # 1. Map the raw result to the appropriate human-readable string
+                final_diagnosis = get_final_diagnosis_label(raw_model_result, protocol_mode) 
+
+            # --- DIAGNOSIS AND COMPANION LOGIC (MOVED OUTSIDE IF/ELSE BLOCK) ---
+            # This block now runs regardless of the Hard Override result
             
-            st.markdown("---")
+            # INTELLIGENT RESULT DISPLAY (Now using final_diagnosis)
+            if "API Error" in str(final_diagnosis) or "Error:" in str(final_diagnosis):
+                st.error(f"⚠️ SYSTEM ERROR: {final_diagnosis}")
+            else:
+                st.success(f"**FINAL DIAGNOSIS:** {final_diagnosis}")
+                
+                # Use the new mapped string to check for POSITIVE
+                if "POSITIVE" in final_diagnosis.upper():
+                    st.error("ACTION REQUIRED: Refer to Neurology.")
+                
+                st.markdown("---")
+            
+            # AI Clinical Companion (Uses the mapped diagnosis)
             st.subheader("🤖 AI Clinical Companion (Azure OpenAI)")
             
             with st.spinner("Generating plain-English explanation..."):
                 data_package = {
-                    "diagnosis_result": result,
+                    "diagnosis_result": final_diagnosis, # <--- Use the final mapped string here
                     "metabolic_index": val_meta_index,
                     "biomarkers": biomarkers,
-                    "context": f"Patient is being screened for {protocol_mode}" 
+                    "context": f"Patient is being screened for {protocol_mode}"
                 }
-                
                 explanation = get_safe_diagnosis_explanation(data_package)
                 
                 if "DETECTED_RISK" in explanation:
@@ -460,10 +525,11 @@ else:
                 elif "System Note" in explanation:
                     st.warning(explanation)
                 else:
-                    st.info(explanation)
+                    st.info(explanation)    
     else:
             # LOCKED STATE
             st.info("🔒 **Confirmatory Lab Interface is locked.** Patient risk profile does not meet the threshold (50%) for advanced metabolic screening.")
+
 
 
 
