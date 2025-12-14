@@ -439,7 +439,7 @@ else:
                     result = call_azure_api(biomarkers, current_score,)
                 
                 st.success(f"**FINAL DIAGNOSIS:** {result}")
-                if "POSITIVE" in result:
+                if "POSITIVE" in str(result).upper():
                     st.error("ACTION REQUIRED: Refer to Neurology.")
             
             st.markdown("---")
@@ -464,6 +464,7 @@ else:
     else:
             # LOCKED STATE
             st.info("🔒 **Confirmatory Lab Interface is locked.** Patient risk profile does not meet the threshold (50%) for advanced metabolic screening.")
+
 
 
 
