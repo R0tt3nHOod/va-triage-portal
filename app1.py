@@ -222,9 +222,8 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
     
     # Prepare the JSON payload required by Azure ML
     payload = {
-        "Inputs": {
-            "data": [
-                {
+        "input_data":[
+            {
                     "nad_nadh": biomarkers['nad'],
                     "pcr_atp": biomarkers['pcr'],
                     "gsh_gssg": biomarkers['gsh'],
@@ -469,5 +468,6 @@ else:
                 st.warning(explanation)
             else:
                 st.info(explanation)
+
 
 
