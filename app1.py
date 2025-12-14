@@ -250,8 +250,8 @@ def call_azure_api(biomarkers, prior_prob, symptoms):
             raise ValueError("Endpoint configuration missing")
 
         # ACTUAL API CALL
-        # timeout set to 3s to prevent hanging during a live demo
-        response = requests.post(endpoint, json=payload, headers=headers, timeout=3.0) 
+        # timeout set to 30s to prevent hanging during a live demo
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=30.0) 
         
         if response.status_code == 200:
             # Parse the Azure ML JSON response
@@ -480,3 +480,4 @@ else:
                 st.warning(explanation)
             else:
                 st.info(explanation)
+
